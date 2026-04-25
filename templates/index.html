@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mango Assistant</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      height: 100dvh;
+      padding: 1rem;
+    }
+
+    header {
+      width: 100%;
+      max-width: 720px;
+      padding: 0.75rem 0;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #333;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 0.5rem;
+    }
+
+    #chat-window {
+      flex: 1;
+      width: 100%;
+      max-width: 720px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+    }
+
+    .msg {
+      max-width: 80%;
+      padding: 0.6rem 0.9rem;
+      border-radius: 12px;
+      line-height: 1.5;
+      font-size: 0.95rem;
+      white-space: pre-wrap;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: #ff8c00;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg.bot {
+      align-self: flex-start;
+      background: #fff;
+      color: #222;
+      border: 1px solid #e0e0e0;
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg.thinking {
+      align-self: flex-start;
+      background: #fff;
+      color: #999;
+      border: 1px solid #e0e0e0;
+      border-bottom-left-radius: 4px;
+      font-style: italic;
+    }
+
+    #input-row {
+      width: 100%;
+      max-width: 720px;
+      display: flex;
+      gap: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #ddd;
+    }
+
+    #user-input {
+      flex: 1;
+      padding: 0.65rem 0.9rem;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      outline: none;
+      resize: none;
+      height: 44px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    #user-input:focus { border-color: #ff8c00; }
+
+    #send-btn {
+      padding: 0 1.2rem;
+      background: #ff8c00;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      height: 44px;
+    }
+
+    #send-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+    #reset-btn {
+      padding: 0 0.8rem;
+      background: none;
+      color: #999;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      height: 44px;
+    }
+
+    #reset-btn:hover { color: #333; border-color: #999; }
+  </style>
+</head>
+<body>
+  <header>Mango Assistant</header>
+
+  <div id="chat-window"></div>
+
+  <div id="input-row">
+    <textarea id="user-input" placeholder="Ask about our products…" rows="1"></textarea>
+    <button id="reset-btn" title="Clear conversation">Clear</button>
+    <button id="send-btn">Send</button>
+  </div>
+
+  <script>
+    const SESSION_KEY = "mango_session_id";
+
+    function getSessionId() {
+      let id = sessionStorage.getItem(SESSION_KEY);
+      if (!id) {
+        id = crypto.randomUUID();
+        sessionStorage.setItem(SESSION_KEY, id);
+      }
+      return id;
+    }
+
+    const chatWindow = document.getElementById("chat-window");
+    const input = document.getElementById("user-input");
+    const sendBtn = document.getElementById("send-btn");
+    const resetBtn = document.getElementById("reset-btn");
+
+    function appendMessage(text, role) {
+      const div = document.createElement("div");
+      div.className = `msg ${role}`;
+      div.textContent = text;
+      chatWindow.appendChild(div);
+      chatWindow.scrollTop = chatWindow.scrollHeight;
+      return div;
+    }
+
+    function setLoading(loading) {
+      sendBtn.disabled = loading;
+      input.disabled = loading;
+    }
+
+    async function sendMessage() {
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = "";
+      input.style.height = "44px";
+      appendMessage(text, "user");
+
+      const thinking = appendMessage("Thinking…", "thinking");
+      setLoading(true);
+
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_id: getSessionId(), message: text }),
+        });
+
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        const data = await res.json();
+        thinking.remove();
+        appendMessage(data.reply, "bot");
+      } catch (err) {
+        thinking.remove();
+        appendMessage("Something went wrong. Please try again.", "bot");
+        console.error(err);
+      } finally {
+        setLoading(false);
+        input.focus();
+      }
+    }
+
+    sendBtn.addEventListener("click", sendMessage);
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    });
+
+    // Auto-grow textarea
+    input.addEventListener("input", () => {
+      input.style.height = "44px";
+      input.style.height = Math.min(input.scrollHeight, 120) + "px";
+    });
+
+    resetBtn.addEventListener("click", async () => {
+      const sid = getSessionId();
+      await fetch(`/chat/${sid}`, { method: "DELETE" }).catch(() => {});
+      sessionStorage.removeItem(SESSION_KEY);
+      chatWindow.innerHTML = "";
+    });
+  </script>
+</body>
+</html>

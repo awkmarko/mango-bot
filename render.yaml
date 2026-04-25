@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: mango-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: OLLAMA_BASE_URL
+        sync: false
+      - key: OLLAMA_MODEL
+        value: gemma2:9b
+      - key: EMBEDDING_MODEL
+        value: nomic-embed-text
+      - key: CHROMA_DB_PATH
+        value: ./chroma_db
+      - key: MAX_HISTORY_TURNS
+        value: "20"
+      - key: MYSQL_HOST
+        sync: false
+      - key: MYSQL_PORT
+        value: "3306"
+      - key: MYSQL_USER
+        sync: false
+      - key: MYSQL_PASSWORD
+        sync: false
+      - key: MYSQL_DATABASE
+        value: database
