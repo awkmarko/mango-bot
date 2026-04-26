@@ -57,7 +57,7 @@ pip install -r requirements.txt
 
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=mistral:7b
+OLLAMA_MODEL=gemma2:9b
 MAX_HISTORY_TURNS=20
 
 MYSQL_HOST=localhost
@@ -70,7 +70,7 @@ MYSQL_DATABASE=clickshop
 **3. Pull the model**
 
 ```bash
-ollama pull mistral:7b
+ollama pull gemma2:9b
 ```
 
 **4. Start the server**
