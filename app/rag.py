@@ -90,7 +90,9 @@ async def _embed(text: str) -> Optional[List[float]]:
     """Embed text via Ollama; retries once on failure, then skips."""
     for attempt in range(2):
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.ollama_timeout, connect=10.0)
+            ) as client:
                 response = await client.post(
                     f"{settings.ollama_base_url}/api/embeddings",
                     json={"model": settings.embedding_model, "prompt": text},

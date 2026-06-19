@@ -466,7 +466,9 @@ async def _generate_stream(body: ChatRequest) -> AsyncGenerator[str, None]:
 
     full_reply = ""
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(settings.ollama_timeout, connect=10.0)
+        ) as client:
             async with client.stream(
                 "POST",
                 f"{settings.ollama_base_url}/api/chat",
@@ -491,6 +493,9 @@ async def _generate_stream(body: ChatRequest) -> AsyncGenerator[str, None]:
                         yield _sse(content)
                     if chunk.get("done"):
                         break
+    except httpx.TimeoutException:
+        yield _sse("Trenutno mi treba malo više vremena. Pokušajte ponovo.")
+        return
     except Exception as exc:
         yield f"data: [ERROR] {exc}\n\n"
         return
@@ -518,7 +523,9 @@ async def _generate_stream(body: ChatRequest) -> AsyncGenerator[str, None]:
             },
         ]
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.ollama_timeout, connect=10.0)
+            ) as client:
                 cr = await client.post(
                     f"{settings.ollama_base_url}/api/chat",
                     json={
@@ -530,7 +537,7 @@ async def _generate_stream(body: ChatRequest) -> AsyncGenerator[str, None]:
                 )
                 cr.raise_for_status()
                 confirmation = _strip_action_block(cr.json()["message"]["content"])
-        except Exception as exc:
+        except Exception:
             confirmation = result_msg
 
         reply_suffix = confirmation + ("\n\n" + fresh_card if fresh_card else "")
@@ -586,18 +593,23 @@ async def chat(body: ChatRequest):
         product_card, order_card, order_not_found_id, body.message,
     )
 
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        response = await client.post(
-            f"{settings.ollama_base_url}/api/chat",
-            json={
-                "model": settings.ollama_model,
-                "messages": messages,
-                "stream": False,
-                "options": _LLM_OPTIONS,
-            },
-        )
-        response.raise_for_status()
-        data = response.json()
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(settings.ollama_timeout, connect=10.0)
+        ) as client:
+            response = await client.post(
+                f"{settings.ollama_base_url}/api/chat",
+                json={
+                    "model": settings.ollama_model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": _LLM_OPTIONS,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+    except httpx.TimeoutException:
+        return ChatResponse(reply="Trenutno mi treba malo više vremena. Pokušajte ponovo.")
 
     raw_reply = data["message"]["content"]
     print(f"[llm] raw reply: {raw_reply!r}")
@@ -622,18 +634,23 @@ async def chat(body: ChatRequest):
                 ),
             },
         ]
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            confirm_response = await client.post(
-                f"{settings.ollama_base_url}/api/chat",
-                json={
-                    "model": settings.ollama_model,
-                    "messages": confirm_messages,
-                    "stream": False,
-                    "options": _LLM_OPTIONS,
-                },
-            )
-            confirm_response.raise_for_status()
-            confirmation = _strip_action_block(confirm_response.json()["message"]["content"])
+        try:
+            async with httpx.AsyncClient(
+                timeout=httpx.Timeout(settings.ollama_timeout, connect=10.0)
+            ) as client:
+                confirm_response = await client.post(
+                    f"{settings.ollama_base_url}/api/chat",
+                    json={
+                        "model": settings.ollama_model,
+                        "messages": confirm_messages,
+                        "stream": False,
+                        "options": _LLM_OPTIONS,
+                    },
+                )
+                confirm_response.raise_for_status()
+                confirmation = _strip_action_block(confirm_response.json()["message"]["content"])
+        except Exception:
+            confirmation = result_msg
 
         final_reply = confirmation + ("\n\n" + fresh_card if fresh_card else "")
     else:

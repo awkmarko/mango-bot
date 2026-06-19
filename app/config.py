@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "gemma2:9b"
+    ollama_timeout: float = 120.0
     max_history_turns: int = 20
 
     embedding_model: str = "nomic-embed-text"
