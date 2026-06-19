@@ -147,6 +147,21 @@ async def get_product_by_id(product_id: int) -> Optional[Dict]:
     return dict(row) if row else None
 
 
+async def get_products_by_ids(product_ids: List[int]) -> List[Dict]:
+    if not product_ids or _pool is None:
+        return []
+    placeholders = ",".join(["%s"] * len(product_ids))
+    async with _pool.acquire() as conn:
+        async with conn.cursor(aiomysql.DictCursor) as cur:
+            await cur.execute(
+                f"SELECT id, name, short_name, price, sale_price, in_stock, sku"
+                f" FROM product WHERE id IN ({placeholders})",
+                tuple(product_ids),
+            )
+            rows = await cur.fetchall()
+    return [dict(row) for row in rows]
+
+
 async def fetch_all_orders() -> List[Dict]:
     if _pool is None:
         return []

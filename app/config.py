@@ -8,6 +8,7 @@ class Settings(BaseSettings):
 
     embedding_model: str = "nomic-embed-text"
     chroma_db_path: str = "./chroma_db"
+    force_reindex: bool = False
 
     mysql_host: str = "localhost"
     mysql_port: int = 3306
